@@ -54,9 +54,9 @@ const AIChat = ({ networkData, onAccidentSimulation, selectedElement, onClearAcc
     const quickActions = hasActiveAccident ? [
         { label: '✓ Clear Accident', query: null, action: 'clear' },
     ] : [
-        { label: '💥 Accident Line 1', query: 'What happens during an accident on Line 1?' },
-        { label: '💥 Accident Line 29', query: 'What happens during an accident on Line 29?' },
-        { label: '⚙️ CS Bogatinka Failure', query: 'What happens during compressor failure at Bogatinka?' },
+        { label: '💥 Pipeline Rupture', query: 'Simulate accident on Line 1' },
+        { label: '💥 Main Trunk Failure', query: 'Simulate accident on Line 5' },
+        { label: '⚙️ Station Failure', query: 'Simulate station failure' },
         { label: '📊 System Status', query: 'Show system status' },
     ];
 

@@ -1,4 +1,7 @@
 // Accident scenarios and AI responses for GTS Simulator
+// Updated for large network (150 stations, 210 pipelines)
+
+import { stations, pipelines, getKeyPipelines, getKeyStations } from './network';
 
 export const accidentTypes = {
     pipeRupture: {
@@ -33,508 +36,266 @@ export const accidentTypes = {
     },
 };
 
-// Accident scenarios for specific pipeline sections
-export const pipelineAccidentScenarios = {
-    pipe_surgut_bogat: {
-        pipeRupture: {
-            affectedStations: ['gis_surgut', 'cs_bogatinka', 'cs_shatrovsk'],
-            affectedPipelines: ['pipe_surgut_bogat', 'pipe_bogat_shatrov', 'pipe_shatrov_sysert', 'pipe_shatrov_dalmat'],
-            pressureChange: { gis_surgut: -25, cs_bogatinka: -30 },
-            flowRateChange: -45,
-            description: `
-        <p><span class="warning">CRITICAL EMERGENCY</span> on Line 1 (GIS Surgut → CS Bogatinka)</p>
-        <p>A pipeline rupture on the main northern trunk will cause the following consequences:</p>
-        <ul>
-          <li>Immediate pressure drop of <span class="highlight">25-30 atm</span> at GIS Surgut and CS Bogatinka</li>
-          <li>Automatic shutdown of compressor units at CS Bogatinka</li>
-          <li>Emergency valves triggered at both ends of the section</li>
-          <li>System flow rate reduction by <span class="warning">45%</span></li>
-          <li>Total flow to PPTT Ufa significantly reduced</li>
-        </ul>
-        <p>Estimated containment time: <span class="highlight">15-20 minutes</span></p>
-        <p>Estimated recovery time: <span class="warning">8-12 hours</span></p>
-      `,
-            recommendations: [
-                'Immediately close emergency valves LV-SB1 and LV-SB2',
-                'Reduce GIS Surgut output to minimum',
-                'Activate backup route through southern branch',
-                'Dispatch emergency crew to contain the leak',
-            ],
-        },
-        gasLeak: {
-            affectedStations: ['gis_surgut', 'cs_bogatinka'],
-            affectedPipelines: ['pipe_surgut_bogat'],
-            pressureChange: { gis_surgut: -8, cs_bogatinka: -12 },
-            flowRateChange: -15,
-            description: `
-        <p><span class="warning">GAS LEAK</span> on Line 1</p>
-        <p>Gas leak detected on GIS Surgut → CS Bogatinka section:</p>
-        <ul>
-          <li>Pressure drop: <span class="highlight">8-12 atm</span></li>
-          <li>Gas loss: approximately <span class="warning">15%</span> of flow rate</li>
-          <li>Pressure reduction recommended for safe repairs</li>
-        </ul>
-      `,
-            recommendations: [
-                'Reduce section pressure to 40 atm',
-                'Dispatch repair crew for diagnostics',
-                'Prepare sealing equipment',
-            ],
-        },
-    },
-    pipe_terensay_ufa: {
-        pipeRupture: {
-            affectedStations: ['cs_terensay', 'pptt_ufa'],
-            affectedPipelines: ['pipe_terensay_ufa', 'pipe_jalimbet_terensay'],
-            pressureChange: { cs_terensay: -28, pptt_ufa: -35 },
-            flowRateChange: -38,
-            description: `
-        <p><span class="warning">CRITICAL EMERGENCY</span> on Line 29 (CS Terensay → PPTT Ufa)</p>
-        <p>A rupture on the terminal connection leads to serious consequences:</p>
-        <ul>
-          <li>Complete supply interruption to <span class="warning">PPTT Ufa</span> terminal</li>
-          <li>Pressure drop of <span class="highlight">28-35 atm</span></li>
-          <li>Flow rate to consumers: <span class="warning">6685.6 → 0 k m³/h</span></li>
-          <li>All downstream consumers affected</li>
-        </ul>
-        <p>Alternative route: Must reroute through backup connections</p>
-        <p>Power loss: <span class="highlight">~35 MW</span></p>
-      `,
-            recommendations: [
-                'Close linear valves on Line 29',
-                'Activate emergency shutdown at PPTT Ufa',
-                'Notify all downstream consumers immediately',
-                'Coordinate with dispatch center',
-            ],
-        },
-        blockage: {
-            affectedStations: ['cs_terensay', 'pptt_ufa'],
-            affectedPipelines: ['pipe_terensay_ufa'],
-            pressureChange: { cs_terensay: 5, pptt_ufa: -20 },
-            flowRateChange: -30,
-            description: `
-        <p><span class="highlight">BLOCKAGE</span> on Line 29</p>
-        <p>Partial blockage detected (hydrate plug or mechanical obstruction):</p>
-        <ul>
-          <li>Inlet pressure increase: <span class="highlight">+5 atm</span></li>
-          <li>Outlet pressure drop: <span class="warning">-20 atm</span></li>
-          <li>Flow reduction: <span class="warning">30%</span></li>
-        </ul>
-      `,
-            recommendations: [
-                'Run diagnostics with inline inspection tool',
-                'For hydrate plug - apply section heating',
-                'Consider using chemical inhibitors',
-            ],
-        },
-    },
-    pipe_bogat_shatrov: {
-        pipeRupture: {
-            affectedStations: ['cs_bogatinka', 'cs_shatrovsk'],
-            affectedPipelines: ['pipe_bogat_shatrov', 'pipe_shatrov_sysert', 'pipe_shatrov_dalmat'],
-            pressureChange: { cs_bogatinka: -22, cs_shatrovsk: -28 },
-            flowRateChange: -35,
-            description: `
-        <p><span class="warning">CRITICAL EMERGENCY</span> on Line 2 (CS Bogatinka → CS Shatrovskaya)</p>
-        <p>Rupture on the secondary northern trunk:</p>
-        <ul>
-          <li>Pressure drop of <span class="highlight">22-28 atm</span></li>
-          <li>CS Shatrovskaya isolated from main supply</li>
-          <li>GIS Sysert and downstream stations affected</li>
-          <li>System flow rate reduction by <span class="warning">35%</span></li>
-        </ul>
-        <p>Estimated recovery time: <span class="warning">6-10 hours</span></p>
-      `,
-            recommendations: [
-                'Close emergency valves on Line 2',
-                'Isolate CS Shatrovskaya section',
-                'Reroute flow through alternative paths',
-                'Dispatch emergency repair crew',
-            ],
-        },
-    },
-};
+// Generate accident scenarios dynamically based on the network
+function generatePipelineScenarios() {
+    const scenarios = {};
+    const keyPipelines = getKeyPipelines();
 
+    keyPipelines.forEach((pipeline, index) => {
+        const fromStation = stations.find(s => s.id === pipeline.from);
+        const toStation = stations.find(s => s.id === pipeline.to);
 
-// Accident scenarios for stations
-export const stationAccidentScenarios = {
-    cs_bogatinka: {
-        compressorFailure: {
-            affectedStations: ['cs_bogatinka', 'cs_shatrovsk', 'gis_surgut'],
-            affectedPipelines: ['pipe_surgut_bogat', 'pipe_bogat_shatrov'],
-            pressureChange: { cs_bogatinka: -20, cs_shatrovsk: -15, gis_surgut: -10 },
-            flowRateChange: -25,
-            description: `
-        <p><span class="warning">COMPRESSOR FAILURE</span> at CS Bogatinka</p>
-        <p>One compressor unit failure at the main northern compressor station:</p>
-        <ul>
-          <li>Discharge pressure reduction by <span class="highlight">20 atm</span></li>
-          <li>Station output decrease by <span class="warning">25%</span></li>
-          <li>Cascade effect on CS Shatrovskaya and GIS Surgut</li>
-          <li>Remaining units: <span class="highlight">2 of 4</span></li>
-        </ul>
-        <p>Backup unit can be started in <span class="highlight">45 minutes</span></p>
-      `,
-            recommendations: [
-                'Start backup compressor unit',
-                'Reduce inlet flow to stabilize',
-                'Check oil system condition',
-                'Diagnose the failed unit',
-            ],
-        },
-    },
-    cs_terensay: {
-        compressorFailure: {
-            affectedStations: ['cs_terensay', 'pptt_ufa', 'gis_jalimbet'],
-            affectedPipelines: ['pipe_terensay_ufa', 'pipe_jalimbet_terensay'],
-            pressureChange: { cs_terensay: -18, pptt_ufa: -22 },
-            flowRateChange: -22,
-            description: `
-        <p><span class="warning">COMPRESSOR FAILURE</span> at CS Terensay</p>
-        <p>Critical network node - affects PPTT Ufa terminal:</p>
-        <ul>
-          <li>PPTT Ufa receives <span class="warning">22% less</span> gas</li>
-          <li>Backup activation required within <span class="highlight">30 min</span></li>
-          <li>Flow rate: 456.2 → 355.8 k m³/h</li>
-        </ul>
-      `,
-            recommendations: [
-                'Immediate backup unit startup',
-                'Temporary load increase on CS Dombarovka',
-                'Notify end consumers of possible reduction',
-            ],
-        },
-    },
-    cs_magnitogorsk: {
-        compressorFailure: {
-            affectedStations: ['cs_magnitogorsk', 'gis_krasnogorsk', 'gis_kartaly'],
-            affectedPipelines: ['pipe_magnit_krasnog', 'pipe_magnit_kartaly', 'pipe_urgala_magnit'],
-            pressureChange: { cs_magnitogorsk: -16, gis_kartaly: -12 },
-            flowRateChange: -18,
-            description: `
-        <p><span class="warning">COMPRESSOR FAILURE</span> at CS Magnitogorsk</p>
-        <p>Central hub station failure:</p>
-        <ul>
-          <li>GIS Kartaly flow reduced by <span class="warning">18%</span></li>
-          <li>ICA Central affected</li>
-          <li>Pressure drop of <span class="highlight">16 atm</span></li>
-        </ul>
-      `,
-            recommendations: [
-                'Start backup compressor unit',
-                'Reroute flow through Urgala branch',
-                'Monitor ICA Central pressure',
-            ],
-        },
-    },
-};
+        if (!fromStation || !toStation) return;
 
-// Flow rate responses for stations
-export const flowRateResponses = {
-    western: `
-    <p>Current flow rate at <span class="highlight">CS "Western"</span> is <span class="highlight">850 thousand m³/day</span> (5-minute sensor polling interval).</p>
-    <p>Daily calculation: <span class="highlight">20.4 million m³/day</span></p>
-    <p>I can provide you with information about <span class="highlight">technological limits and constraints</span> set for this compressor station.</p>
-  `,
-    eastern: `
-    <p>Current flow rate at <span class="highlight">CS "Eastern"</span> is <span class="highlight">720 thousand m³/day</span> (5-minute sensor polling interval).</p>
-    <p>Daily calculation: <span class="highlight">17.3 million m³/day</span></p>
-  `,
-};
+        // Find nearby stations that would be affected
+        const affectedStations = [pipeline.from, pipeline.to];
+        const affectedPipelines = [pipeline.id];
 
-// Temperature graph responses
-export const temperatureGraphResponses = {
-    eastern: {
-        type: 'graph',
-        content: `
-    <p>Here is the gas temperature change graph at <span class="highlight">GIS "Eastern"</span>, please review:</p>
-  `,
-        graphData: {
-            label: 'Gas Temperature at GIS "Eastern" (Past Week)',
-            data: [18.2, 19.5, 17.8, 20.1, 19.3, 18.7, 19.8],
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            unit: '°C',
-        },
-    },
-};
+        // Add adjacent pipelines
+        pipelines.forEach(p => {
+            if (p.from === pipeline.from || p.from === pipeline.to ||
+                p.to === pipeline.from || p.to === pipeline.to) {
+                if (!affectedPipelines.includes(p.id)) {
+                    affectedPipelines.push(p.id);
+                }
+            }
+        });
 
-// Emergency plan responses
-export const emergencyPlanResponses = {
-    northern: {
-        documentName: 'Emergency Elimination Plan for GRS "Northern".pdf',
-        summary: `
-    <p>Providing you with <span class="highlight">"Emergency Elimination Plan for GRS Northern.pdf"</span>.</p>
-    <p>I can describe in detail the steps you need to take, which isolation valves to close, who to notify, and provide phone numbers.</p>
-  `,
-        detailed: `
-    <p><span class="warning">EMERGENCY ELIMINATION PLAN</span> for pipeline rupture at GRS "Northern" outlet:</p>
-    
-    <p><span class="highlight">Immediate Actions (first 5 minutes):</span></p>
-    <ul>
-      <li>Close isolation valve <span class="warning">LV-N1</span> at GRS inlet</li>
-      <li>Close isolation valve <span class="warning">LV-N2</span> at the outlet to the consumer</li>
-      <li>Activate emergency alarm system</li>
-      <li>Start gas venting through emergency stack</li>
-    </ul>
-    
-    <p><span class="highlight">Notification Procedure:</span></p>
-    <ul>
-      <li>Dispatch Center: <span class="highlight">+1-555-DISPATCH (347-7282)</span></li>
-      <li>Emergency Services: <span class="highlight">+1-555-EMRGNCY (367-4629)</span></li>
-      <li>On-duty Site Engineer: <span class="highlight">+1-555-SITE-ENG (748-3364)</span></li>
-      <li>Environmental Service: <span class="highlight">+1-555-ENV-SVC (368-7821)</span></li>
-    </ul>
-    
-    <p><span class="highlight">Valves to Close:</span></p>
-    <ul>
-      <li>LV-N1 (main inlet isolation valve)</li>
-      <li>LV-N2 (outlet isolation valve)</li>
-      <li>BV-N3 (bypass valve - if open)</li>
-      <li>SV-N4, SV-N5 (sectioning valves on connected sections)</li>
-    </ul>
-    
-    <p><span class="highlight">Safety Zone:</span></p>
-    <ul>
-      <li>Establish exclusion zone: <span class="warning">300 meters</span> from rupture site</li>
-      <li>Evacuate personnel from hazardous area</li>
-      <li>Block vehicle access to the site</li>
-    </ul>
-    
-    <p>Estimated gas evacuation time: <span class="highlight">25-30 minutes</span></p>
-    <p>Safe repair start time: <span class="highlight">after gas concentration drops below 0.5% LEL</span></p>
-  `,
-    },
-};
+        scenarios[pipeline.id] = {
+            pipeRupture: {
+                affectedStations,
+                affectedPipelines,
+                pressureChange: { [pipeline.from]: -25, [pipeline.to]: -30 },
+                flowRateChange: -35 - (index * 2),
+                description: `
+                    <p><span class="warning">CRITICAL EMERGENCY</span> on ${pipeline.name} (${fromStation.name} → ${toStation.name})</p>
+                    <p>A pipeline rupture on this section will cause the following consequences:</p>
+                    <ul>
+                        <li>Immediate pressure drop of <span class="highlight">25-30 atm</span></li>
+                        <li>Automatic shutdown of nearby compressor units</li>
+                        <li>Emergency valves triggered at both ends</li>
+                        <li>System flow rate reduction by <span class="warning">${35 + index * 2}%</span></li>
+                    </ul>
+                    <p>Estimated containment time: <span class="highlight">15-25 minutes</span></p>
+                    <p>Estimated recovery time: <span class="warning">6-12 hours</span></p>
+                `,
+                recommendations: [
+                    `Close emergency valves on ${pipeline.name}`,
+                    `Reduce output from ${fromStation.name}`,
+                    'Activate backup route through alternative branch',
+                    'Dispatch emergency crew to contain the leak',
+                ],
+            },
+            gasLeak: {
+                affectedStations,
+                affectedPipelines: [pipeline.id],
+                pressureChange: { [pipeline.from]: -8, [pipeline.to]: -12 },
+                flowRateChange: -15,
+                description: `
+                    <p><span class="warning">GAS LEAK</span> on ${pipeline.name}</p>
+                    <p>Gas leak detected on ${fromStation.name} → ${toStation.name} section:</p>
+                    <ul>
+                        <li>Pressure drop: <span class="highlight">8-12 atm</span></li>
+                        <li>Gas loss: approximately <span class="warning">15%</span> of flow rate</li>
+                        <li>Pressure reduction recommended for safe repairs</li>
+                    </ul>
+                `,
+                recommendations: [
+                    'Reduce section pressure to 40 atm',
+                    'Dispatch repair crew for diagnostics',
+                    'Prepare sealing equipment',
+                ],
+            },
+        };
+    });
 
-// Responses to general questions
+    return scenarios;
+}
+
+function generateStationScenarios() {
+    const scenarios = {};
+    const keyStations = getKeyStations();
+
+    keyStations.forEach((station, index) => {
+        // Find connected pipelines
+        const connectedPipelines = pipelines.filter(
+            p => p.from === station.id || p.to === station.id
+        );
+
+        // Find connected stations
+        const connectedStationIds = new Set();
+        connectedPipelines.forEach(p => {
+            connectedStationIds.add(p.from === station.id ? p.to : p.from);
+        });
+
+        const affectedStations = [station.id, ...Array.from(connectedStationIds).slice(0, 2)];
+        const affectedPipelines = connectedPipelines.slice(0, 3).map(p => p.id);
+
+        scenarios[station.id] = {
+            compressorFailure: {
+                affectedStations,
+                affectedPipelines,
+                pressureChange: { [station.id]: -20 },
+                flowRateChange: -22 - (index * 2),
+                description: `
+                    <p><span class="warning">COMPRESSOR FAILURE</span> at ${station.name}</p>
+                    <p>Compressor unit failure at this station:</p>
+                    <ul>
+                        <li>Discharge pressure reduction by <span class="highlight">20 atm</span></li>
+                        <li>Station output decrease by <span class="warning">${22 + index * 2}%</span></li>
+                        <li>Cascade effect on ${connectedStationIds.size} connected stations</li>
+                        <li>Remaining units: <span class="highlight">${(station.parameters.activeUnits || 2) - 1} of ${station.parameters.compressorUnits || 3}</span></li>
+                    </ul>
+                    <p>Backup unit can be started in <span class="highlight">45 minutes</span></p>
+                `,
+                recommendations: [
+                    'Start backup compressor unit',
+                    'Reduce inlet flow to stabilize',
+                    'Check oil system condition',
+                    'Diagnose the failed unit',
+                ],
+            },
+        };
+    });
+
+    return scenarios;
+}
+
+// Generate scenarios
+export const pipelineAccidentScenarios = generatePipelineScenarios();
+export const stationAccidentScenarios = generateStationScenarios();
+
+// General responses
 export const generalResponses = {
     systemStatus: `
-    <p><span class="success">System operating normally</span></p>
-    <p>Current GTS status:</p>
-    <ul>
-      <li>Active stations: <span class="highlight">6 of 6</span></li>
-      <li>Sections in operation: <span class="highlight">7 of 7</span></li>
-      <li>Total flow rate: <span class="highlight">282.4 k m³/h</span></li>
-      <li>Average pressure: <span class="highlight">60.5 atm</span></li>
-      <li>System efficiency: <span class="success">85.1%</span></li>
-    </ul>
-  `,
+        <p><span class="success">System operating normally</span></p>
+        <p>Current GTS status:</p>
+        <ul>
+            <li>Active stations: <span class="highlight">${stations.length} of ${stations.length}</span></li>
+            <li>Sections in operation: <span class="highlight">${pipelines.length} of ${pipelines.length}</span></li>
+            <li>Compressor stations: <span class="highlight">${stations.filter(s => s.type === 'compressor').length}</span></li>
+            <li>Metering stations (GIS): <span class="highlight">${stations.filter(s => s.type === 'metering').length}</span></li>
+            <li>Distribution stations (GRS): <span class="highlight">${stations.filter(s => s.type === 'distribution').length}</span></li>
+            <li>System efficiency: <span class="success">85.1%</span></li>
+        </ul>
+    `,
     gasComposition: `
-    <p>Transported gas composition:</p>
-    <ul>
-      <li>Methane (CH₄): <span class="highlight">94.5%</span></li>
-      <li>Ethane (C₂H₆): <span class="highlight">2.8%</span></li>
-      <li>Propane (C₃H₈): <span class="highlight">0.8%</span></li>
-      <li>Butane (C₄H₁₀): <span class="highlight">0.3%</span></li>
-      <li>CO₂: <span class="highlight">0.5%</span></li>
-      <li>Nitrogen (N₂): <span class="highlight">0.9%</span></li>
-      <li>H₂S: <span class="highlight">0.001%</span> (within normal limits)</li>
-    </ul>
-    <p>Heating value: <span class="highlight">35.8 MJ/m³</span></p>
-  `,
+        <p>Transported gas composition:</p>
+        <ul>
+            <li>Methane (CH₄): <span class="highlight">94.5%</span></li>
+            <li>Ethane (C₂H₆): <span class="highlight">2.8%</span></li>
+            <li>Propane (C₃H₈): <span class="highlight">0.8%</span></li>
+            <li>Butane (C₄H₁₀): <span class="highlight">0.3%</span></li>
+            <li>CO₂: <span class="highlight">0.5%</span></li>
+            <li>Nitrogen (N₂): <span class="highlight">0.9%</span></li>
+            <li>H₂S: <span class="highlight">0.001%</span> (within normal limits)</li>
+        </ul>
+        <p>Heating value: <span class="highlight">35.8 MJ/m³</span></p>
+    `,
     networkTopology: `
-    <p>Gas transmission network topology:</p>
-    <ul>
-      <li>Total length: <span class="highlight">871.8 km</span></li>
-      <li>Compressor stations: <span class="highlight">6</span></li>
-      <li>Pipeline sections: <span class="highlight">7</span></li>
-      <li>Pipe diameters: <span class="highlight">1020-1420 mm</span></li>
-      <li>Operating pressure: <span class="highlight">50-75 atm</span></li>
-    </ul>
-    <p>The network has a ring structure with backup bypass capability.</p>
-  `,
+        <p>Gas transmission network topology:</p>
+        <ul>
+            <li>Total stations: <span class="highlight">${stations.length}</span></li>
+            <li>Total pipeline sections: <span class="highlight">${pipelines.length}</span></li>
+            <li>Network coverage area: <span class="highlight">~2000 x 1200 km²</span></li>
+            <li>Pipe diameters: <span class="highlight">720-1420 mm</span></li>
+            <li>Operating pressure: <span class="highlight">45-75 atm</span></li>
+        </ul>
+        <p>The network has a complex trunk-and-branch structure with redundancy.</p>
+    `,
     help: `
-    <p>I am an intelligent assistant for gas transmission system analysis. Here's what I can do:</p>
-    <ul>
-      <li>📊 Show <span class="highlight">station and section parameters</span></li>
-      <li>🔍 Analyze <span class="highlight">emergency scenarios</span></li>
-      <li>⚠️ Simulate <span class="highlight">accident consequences</span></li>
-      <li>📈 Display <span class="highlight">gas composition</span> and characteristics</li>
-    </ul>
-    <p>Example questions:</p>
-    <ul>
-      <li>"What happens during an emergency on section 5?"</li>
-      <li>"What is the pressure at CS-3?"</li>
-      <li>"Show gas composition"</li>
-      <li>"System status"</li>
-    </ul>
-  `,
+        <p>I am an intelligent assistant for gas transmission system analysis. Here's what I can do:</p>
+        <ul>
+            <li>📊 Show <span class="highlight">station and section parameters</span></li>
+            <li>🔍 Analyze <span class="highlight">emergency scenarios</span></li>
+            <li>⚠️ Simulate <span class="highlight">accident consequences</span></li>
+            <li>📈 Display <span class="highlight">gas composition</span> and characteristics</li>
+        </ul>
+        <p>Example questions:</p>
+        <ul>
+            <li>"Simulate accident on Line 1"</li>
+            <li>"What happens during an accident on Line 5?"</li>
+            <li>"Simulate station failure"</li>
+            <li>"Show system status"</li>
+        </ul>
+    `,
 };
 
 // Function to parse question and generate response
 export function generateAIResponse(question, networkState, conversationContext = {}) {
     const q = question.toLowerCase();
 
-    // Check for detailed emergency plan request (follow-up)
-    if ((q.includes('detail') || q.includes('describe') || q.includes('распиши') || q.includes('подробн')) &&
-        conversationContext.lastTopic === 'emergencyPlan') {
-        const location = conversationContext.lastLocation || 'northern';
-        const plan = emergencyPlanResponses[location];
-        if (plan) {
-            return { type: 'text', content: plan.detailed };
-        }
-    }
-
-    // Check for flow rate queries
-    if ((q.includes('flow') || q.includes('rate') || q.includes('расход')) &&
-        (q.includes('cs') || q.includes('кс') || q.includes('western') || q.includes('западн') ||
-            q.includes('eastern') || q.includes('восточн'))) {
-        if (q.includes('western') || q.includes('западн')) {
-            return {
-                type: 'text',
-                content: flowRateResponses.western,
-                topicContext: { lastTopic: 'flowRate', lastLocation: 'western' }
-            };
-        }
-        if (q.includes('eastern') || q.includes('восточн')) {
-            return {
-                type: 'text',
-                content: flowRateResponses.eastern,
-                topicContext: { lastTopic: 'flowRate', lastLocation: 'eastern' }
-            };
-        }
-    }
-
-    // Check for temperature graph requests
-    if ((q.includes('graph') || q.includes('chart') || q.includes('график') || q.includes('температур')) &&
-        (q.includes('gis') || q.includes('гис') || q.includes('eastern') || q.includes('восточн') || q.includes('week') || q.includes('недел'))) {
-        const graphResponse = temperatureGraphResponses.eastern;
-        return {
-            type: 'graph',
-            content: graphResponse.content,
-            graphData: graphResponse.graphData,
-            topicContext: { lastTopic: 'temperatureGraph', lastLocation: 'eastern' }
-        };
-    }
-
-    // Check for emergency plan requests
-    if ((q.includes('plan') || q.includes('emergency') || q.includes('план') || q.includes('ликвидаци') || q.includes('авари')) &&
-        (q.includes('grs') || q.includes('грс') || q.includes('northern') || q.includes('северн') || q.includes('rupture') || q.includes('разрыв'))) {
-        const plan = emergencyPlanResponses.northern;
-        return {
-            type: 'document',
-            documentName: plan.documentName,
-            content: plan.summary,
-            topicContext: { lastTopic: 'emergencyPlan', lastLocation: 'northern' }
-        };
-    }
-
     // Check for help request
-    if (q.includes('help') || q.includes('what can you do') || q.includes('помощь') || q.includes('помоги') || q.includes('что ты умеешь')) {
+    if (q.includes('help') || q.includes('what can you do') || q.includes('помощь') || q.includes('что ты умеешь')) {
         return { type: 'text', content: generalResponses.help };
     }
 
     // Check for system status
-    if (q.includes('status') || q.includes('system') || q.includes('статус') || q.includes('состояние системы') || q.includes('как система')) {
+    if (q.includes('status') || q.includes('system') || q.includes('статус') || q.includes('состояние')) {
         return { type: 'text', content: generalResponses.systemStatus };
     }
 
     // Check for gas composition
-    if (q.includes('composition') || q.includes('gas') || q.includes('состав') || q.includes('газ')) {
+    if (q.includes('composition') || q.includes('состав') || q.includes('газ')) {
         return { type: 'text', content: generalResponses.gasComposition };
     }
 
     // Check for topology
-    if (q.includes('topology') || q.includes('structure') || q.includes('network') || q.includes('топологи') || q.includes('структур') || q.includes('сеть') || q.includes('схема')) {
+    if (q.includes('topology') || q.includes('structure') || q.includes('network') || q.includes('топологи') || q.includes('сеть')) {
         return { type: 'text', content: generalResponses.networkTopology };
     }
 
-    // Check for accident scenario - match line numbers to actual pipeline IDs
-    const lineMatch = q.match(/line\s*(\d+)/i) || q.match(/участ\w*\s*(\d+)/i) || q.match(/section\s*(\d+)/i);
-    const stationNameMatch = q.match(/bogatinka/i) || q.match(/terensay/i) || q.match(/magnitogorsk/i);
+    // Check for accident scenario on pipeline
+    const lineMatch = q.match(/line\s*(\d+)/i) || q.match(/линии?\s*(\d+)/i) || q.match(/участ\w*\s*(\d+)/i);
 
-    // Map line numbers to pipeline IDs
-    const lineToPlipelineMap = {
-        '1': 'pipe_surgut_bogat',
-        '2': 'pipe_bogat_shatrov',
-        '29': 'pipe_terensay_ufa',
-    };
+    if (q.includes('accident') || q.includes('emergency') || q.includes('rupture') || q.includes('simulate') ||
+        q.includes('авари') || q.includes('разрыв') || q.includes('симуляц') || q.includes('моделир')) {
 
-    // Map station names to station IDs
-    const stationNameToIdMap = {
-        'bogatinka': 'cs_bogatinka',
-        'terensay': 'cs_terensay',
-        'magnitogorsk': 'cs_magnitogorsk',
-    };
+        // Find relevant pipeline
+        let targetPipeline = null;
 
-    if (q.includes('accident') || q.includes('emergency') || q.includes('rupture') || q.includes('failure') || q.includes('what happens') ||
-        q.includes('авари') || q.includes('разрыв') || q.includes('отказ') || q.includes('что будет')) {
-
-        // Check for line-based accident
         if (lineMatch) {
-            const lineNum = lineMatch[1];
-            const pipeId = lineToPlipelineMap[lineNum];
-            const scenarios = pipelineAccidentScenarios[pipeId];
+            const lineNum = parseInt(lineMatch[1]);
+            targetPipeline = pipelines.find(p => p.name === `Line ${lineNum}`);
+        }
 
-            if (scenarios) {
-                const accidentType = (q.includes('rupture') || q.includes('разрыв')) ? 'pipeRupture' :
-                    (q.includes('leak') || q.includes('утечк')) ? 'gasLeak' :
-                        (q.includes('blockage') || q.includes('блокир')) ? 'blockage' : 'pipeRupture';
+        // If not found by line number, try first key pipeline
+        if (!targetPipeline) {
+            const keyPipelines = getKeyPipelines();
+            targetPipeline = keyPipelines[0];
+        }
 
-                const scenario = scenarios[accidentType] || scenarios.pipeRupture;
-
-                if (scenario) {
-                    return {
-                        type: 'accident',
-                        pipelineId: pipeId,
-                        accidentType: accidentType,
-                        content: scenario.description,
-                        recommendations: scenario.recommendations,
-                        affectedStations: scenario.affectedStations,
-                        affectedPipelines: scenario.affectedPipelines,
-                    };
-                }
-            }
-
+        if (targetPipeline && pipelineAccidentScenarios[targetPipeline.id]) {
+            const scenario = pipelineAccidentScenarios[targetPipeline.id].pipeRupture;
             return {
-                type: 'text',
-                content: `<p>Analysis of accident on Line ${lineNum}:</p>
-          <p>In case of an accident on this section, automatic shutdown and flow rerouting through backup routes will occur. Available scenarios: Line 1, Line 2, Line 29.</p>`,
+                type: 'accident',
+                pipelineId: targetPipeline.id,
+                accidentType: 'pipeRupture',
+                content: scenario.description,
+                recommendations: scenario.recommendations,
+                affectedStations: scenario.affectedStations,
+                affectedPipelines: scenario.affectedPipelines,
             };
         }
 
-        // Check for station name-based accident
-        if (stationNameMatch) {
-            const stationName = stationNameMatch[0].toLowerCase();
-            const stationId = stationNameToIdMap[stationName];
-            const scenarios = stationAccidentScenarios[stationId];
+        // Station failure
+        if (q.includes('station') || q.includes('compressor') || q.includes('failure') ||
+            q.includes('станц') || q.includes('компрессор') || q.includes('отказ')) {
+            const keyStations = getKeyStations();
+            const targetStation = keyStations[0];
 
-            if (scenarios && scenarios.compressorFailure) {
+            if (targetStation && stationAccidentScenarios[targetStation.id]) {
+                const scenario = stationAccidentScenarios[targetStation.id].compressorFailure;
                 return {
                     type: 'accident',
-                    stationId: stationId,
+                    stationId: targetStation.id,
                     accidentType: 'compressorFailure',
-                    content: scenarios.compressorFailure.description,
-                    recommendations: scenarios.compressorFailure.recommendations,
-                    affectedStations: scenarios.compressorFailure.affectedStations,
-                    affectedPipelines: scenarios.compressorFailure.affectedPipelines,
+                    content: scenario.description,
+                    recommendations: scenario.recommendations,
+                    affectedStations: scenario.affectedStations,
+                    affectedPipelines: scenario.affectedPipelines,
                 };
             }
-        }
-    }
-
-    // Check for station parameters
-    if (stationMatch && (q.includes('pressure') || q.includes('temperature') || q.includes('flow') || q.includes('parameter') ||
-        q.includes('давлени') || q.includes('температур') || q.includes('расход') || q.includes('параметр'))) {
-        const stationNum = stationMatch[1];
-        const stationId = `ks${stationNum}`;
-        const station = networkState?.stations?.find(s => s.id === stationId);
-
-        if (station) {
-            return {
-                type: 'text',
-                content: `
-          <p>Parameters of <span class="highlight">${station.name}</span>:</p>
-          <ul>
-            <li>Inlet pressure: <span class="highlight">${station.parameters.inletPressure} atm</span></li>
-            <li>Outlet pressure: <span class="highlight">${station.parameters.outletPressure} atm</span></li>
-            <li>Temperature: <span class="highlight">${station.parameters.temperature}°C</span></li>
-            <li>Flow rate: <span class="highlight">${station.parameters.flowRate} k m³/h</span></li>
-            <li>Power: <span class="highlight">${station.parameters.power} MW</span></li>
-            <li>Efficiency: <span class="highlight">${station.parameters.efficiency}%</span></li>
-          </ul>
-        `,
-            };
         }
     }
 
@@ -542,12 +303,14 @@ export function generateAIResponse(question, networkState, conversationContext =
     return {
         type: 'text',
         content: `
-      <p>I understood your question. For a more precise answer, please clarify:</p>
-      <ul>
-        <li>Which specific <span class="highlight">section</span> or <span class="highlight">station</span> are you referring to?</li>
-        <li>What type of <span class="highlight">accident</span> are you interested in?</li>
-      </ul>
-      <p>Or select an element on the map and ask a question about it.</p>
-    `,
+            <p>I understood your question. For a more precise answer, please try:</p>
+            <ul>
+                <li>"Simulate accident on Line X" (where X is 1-${pipelines.length})</li>
+                <li>"Simulate station failure"</li>
+                <li>"Show system status"</li>
+                <li>"Show gas composition"</li>
+            </ul>
+            <p>Or select an element on the map and ask a question about it.</p>
+        `,
     };
 }
